@@ -1,0 +1,53 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Loading the MovieLens dataset 
+movies = pd.read_csv('movie.csv')
+ratings = pd.read_csv('rating.csv')
+
+# Merge movies and ratings data
+movie_ratings = pd.merge(ratings, movies, on='movieId')
+
+# Create a user-item matrix (user ratings for each movie)
+user_movie_ratings = movie_ratings.pivot_table(index='userId', columns='title', values='rating')
+
+# Fill missing values with 0
+user_movie_ratings = user_movie_ratings.fillna(0)
+
+# Split the data into training and testing sets
+train_data, test_data = train_test_split(user_movie_ratings, test_size=0.2, random_state=42)
+
+# Calculate cosine similarity between users
+user_similarity = cosine_similarity(train_data)
+
+# Convert the similarity matrix into a DataFrame
+user_similarity_df = pd.DataFrame(user_similarity, index=train_data.index, columns=train_data.index)
+
+# Function to get movie recommendations for a user
+def get_movie_recommendations(user_id, top_n=5):
+    # Get the movies the user has already rated
+    user_rated_movies = user_movie_ratings.loc[user_id]
+
+    # Find similar users
+    similar_users = user_similarity_df[user_id]
+
+    # Weighted average of ratings from similar users
+    recommendations = user_movie_ratings.mul(similar_users, axis=0).sum() / (similar_users.sum() + 1e-10)
+
+    # Exclude movies the user has already rated
+    recommendations = recommendations.drop(user_rated_movies.index)
+
+    # Sort recommendations by rating in descending order
+    recommendations = recommendations.sort_values(ascending=False)
+
+    # Get the top N recommendations
+    top_recommendations = recommendations.head(top_n)
+
+    return top_recommendations
+
+# Example: Get movie recommendations for user 1
+user_id = 1
+recommendations = get_movie_recommendations(user_id)
+print(f"Top 5 movie recommendations for User {user_id}:\n")
+print(recommendations)
